@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting Portal</title>
+    <style>
+        body { background: #1b1e20; color: #eff0f1; font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .auth-card { background: #232629; padding: 40px; border-radius: 8px; border: 1px solid #31363b; box-shadow: 0 10px 30px rgba(0,0,0,0.5); width: 380px; text-align: center; }
+        h1 { font-size: 24px; margin-bottom: 30px; letter-spacing: 1px; color: #3daee9; }
+        input { background: #1b1e20; border: 1px solid #454a4f; color: white; padding: 14px; width: 85%; margin-bottom: 15px; border-radius: 6px; font-size: 16px; outline: none; transition: 0.3s; }
+        input:focus { border-color: #3daee9; box-shadow: 0 0 5px rgba(61, 174, 233, 0.4); }
+        button { background: #3daee9; color: white; border: none; padding: 14px; border-radius: 6px; cursor: pointer; width: 93%; font-weight: 600; font-size: 16px; transition: 0.2s; margin-top: 10px; }
+        button:hover { background: #2980b9; transform: translateY(-1px); }
+        .sec-btn { background: #31363b; border: 1px solid #454a4f; margin-top: 15px; }
+        .sec-btn:hover { background: #3d444a; }
+    </style>
+</head>
+<body>
+    <div class="auth-card">
+        <h1>Secure Video</h1>
+        <input type="text" id="userName" placeholder="Your Full Name">
+        <input type="text" id="roomCode" placeholder="Enter Meeting ID">
+        <button onclick="enterRoom('custom')">Join Meeting</button>
+        <button class="sec-btn" onclick="enterRoom('random')">Create Instant Meeting</button>
+    </div>
+    <script>
+        function enterRoom(type) {
+            const name = document.getElementById('userName').value || 'Guest';
+            let code = document.getElementById('roomCode').value;
+            if (type === 'random') code = Math.random().toString(36).substring(7);
+            if (!code) return alert("Please enter a room code.");
+            localStorage.setItem('uName', name);
+            window.location.href = `/room/${code}`;
+        }
+    </script>
+</body>
+</html>
