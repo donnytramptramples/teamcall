@@ -22,8 +22,8 @@ io.on('connection', socket => {
         socket.emit('permissions', isHost);
         socket.to(roomId).emit('user-connected', userId, userName);
 
-        socket.on('message', (message) => {
-            io.to(roomId).emit('createMessage', message, userName);
+        socket.on('message', (msg) => {
+            io.to(roomId).emit('createMessage', msg, userName);
         });
 
         socket.on('end-meeting', () => {
@@ -40,4 +40,4 @@ io.on('connection', socket => {
     });
 });
 
-server.listen(PORT);
+server.listen(PORT, () => console.log(`Active on ${PORT}`));
