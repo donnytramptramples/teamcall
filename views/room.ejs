@@ -1,113 +1,95 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
     <script src="/socket.io/socket.io.js"></script>
+    <!-- PeerJS loaded synchronously to fix "Peer not defined" -->
     <script src="https://unpkg.com"></script>
     <style>
-        :root { --bg: #1b1e20; --panel: #232629; --accent: #3daee9; --danger: #da4453; --border: #31363b; }
-        body { background: var(--bg); color: #eff0f1; font-family: 'Inter', sans-serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
-        
-        #video-container { flex: 1; display: flex; flex-direction: column; position: relative; }
-        #video-grid { flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; padding: 20px; align-content: center; justify-items: center; overflow-y: auto; }
-        video { width: 100%; max-width: 480px; height: auto; aspect-ratio: 4/3; object-fit: cover; border-radius: 10px; border: 2px solid var(--border); background: #000; transform: scaleX(-1); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-
-        .control-bar { height: 80px; background: rgba(35, 38, 41, 0.95); display: flex; align-items: center; justify-content: center; gap: 20px; border-top: 1px solid var(--border); backdrop-filter: blur(10px); }
-        .icon-btn { background: var(--panel); border: 1px solid var(--border); color: #eff0f1; width: 50px; height: 50px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.3s; font-size: 12px; font-weight: bold; }
-        .icon-btn:hover { border-color: var(--accent); color: var(--accent); background: #2a2e32; }
-        .icon-btn.active { color: var(--accent); border-color: var(--accent); box-shadow: 0 0 10px rgba(61, 174, 233, 0.3); }
-        .leave-btn { background: var(--danger); border: none; width: auto; padding: 0 25px; border-radius: 25px; }
-        .leave-btn:hover { background: #c0392b; color: white; }
-        #end-btn { display: none; background: #96281b; }
-
-        #sidebar { width: 320px; background: var(--panel); border-left: 1px solid var(--border); display: flex; flex-direction: column; }
-        #chat-header { padding: 20px; font-weight: bold; border-bottom: 1px solid var(--border); font-size: 14px; letter-spacing: 1px; }
-        #messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; scrollbar-width: thin; }
-        .msg { background: #31363b; padding: 10px; border-radius: 8px; max-width: 85%; font-size: 13px; border-left: 3px solid var(--accent); }
-        .msg b { color: var(--accent); display: block; margin-bottom: 4px; }
-        #chat-input { background: #1b1e20; border: none; border-top: 1px solid var(--border); padding: 20px; color: white; outline: none; font-size: 14px; }
+        body { background: #1b1e20; color: #eff0f1; font-family: sans-serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        #main { flex: 1; display: flex; flex-direction: column; background: #232629; position: relative; }
+        #video-grid { flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; padding: 20px; overflow-y: auto; align-content: center; }
+        video { width: 100%; border-radius: 8px; border: 2px solid #31363b; background: #000; transform: scaleX(-1); }
+        .controls { height: 80px; background: #2a2e32; display: flex; align-items: center; justify-content: center; gap: 15px; border-top: 1px solid #31363b; }
+        button { background: #31363b; color: white; border: 1px solid #454a4f; padding: 10px 20px; border-radius: 5px; cursor: pointer; transition: 0.2s; font-weight: bold; }
+        button:hover { background: #3daee9; border-color: #3daee9; }
+        .end-btn { background: #da4453; display: none; border: none; }
+        #sidebar { width: 300px; background: #232629; border-left: 1px solid #31363b; display: flex; flex-direction: column; }
+        #msgs { flex: 1; padding: 15px; overflow-y: auto; font-size: 13px; }
+        #chat-input { background: #1b1e20; border: none; border-top: 1px solid #31363b; padding: 20px; color: white; outline: none; }
     </style>
 </head>
 <body>
-    <div id="video-container">
+    <div id="main">
         <div id="video-grid"></div>
-        <div class="control-bar">
-            <button class="icon-btn" onclick="toggle('audio')">Mic</button>
-            <button class="icon-btn" onclick="toggle('video')">Cam</button>
-            <button class="icon-btn" onclick="shareScreen()">Share</button>
-            <button class="icon-btn" onclick="copyInvite()">Invite</button>
-            <button class="icon-btn leave-btn" onclick="location.href='/'">Leave</button>
-            <button id="end-btn" class="icon-btn leave-btn" onclick="endCall()">End for All</button>
+        <div class="controls">
+            <button onclick="copy()">Invite</button>
+            <button onclick="toggleMic()">Mic</button>
+            <button onclick="toggleVid()">Cam</button>
+            <button onclick="share()">Share Screen</button>
+            <button onclick="location.href='/'">Leave</button>
+            <button id="end-btn" class="end-btn" onclick="end()">End Call</button>
         </div>
     </div>
     <div id="sidebar">
-        <div id="chat-header">IN-CALL MESSAGES</div>
-        <div id="messages"></div>
-        <input type="text" id="chat-input" placeholder="Send a message to everyone...">
+        <div style="padding:15px; border-bottom:1px solid #31363b; font-weight:bold;">CHAT</div>
+        <div id="msgs"></div>
+        <input type="text" id="chat-input" placeholder="Type message...">
     </div>
 
     <script>
         const socket = io('/');
-        const videoGrid = document.getElementById('video-grid');
+        const grid = document.getElementById('video-grid');
+        
+        // PeerJS Cloud Config for UK-HK Stability
         const peer = new Peer(undefined, { host: '0.peerjs.com', port: 443, secure: true });
-        const myVideo = document.createElement('video');
-        myVideo.muted = true;
+        
+        const myVid = document.createElement('video'); myVid.muted = true;
         const uName = localStorage.getItem('uName') || "User";
         let myStream;
 
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-            myStream = stream;
-            addVideo(myVideo, stream);
-            peer.on('call', call => {
-                call.answer(stream);
-                const video = document.createElement('video');
-                call.on('stream', userStream => addVideo(video, userStream));
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(s => {
+            myStream = s; add(myVid, s);
+            peer.on('call', c => {
+                c.answer(s);
+                const v = document.createElement('video');
+                c.on('stream', us => add(v, us));
             });
-            socket.on('user-connected', (userId) => connect(userId, stream));
+            socket.on('user-connected', id => {
+                const c = peer.call(id, s);
+                const v = document.createElement('video');
+                c.on('stream', us => add(v, us));
+            });
         });
 
         peer.on('open', id => socket.emit('join-room', "<%= roomId %>", id, uName));
-        socket.on('permissions', isHost => { if(isHost) document.getElementById('end-btn').style.display='flex'; });
-        socket.on('meeting-ended', () => { alert("Meeting ended by host"); location.href='/'; });
+        socket.on('permissions', h => { if(h) document.getElementById('end-btn').style.display='block'; });
+        socket.on('meeting-ended', () => { alert("Host ended meeting"); location.href='/'; });
 
-        function connect(userId, stream) {
-            const call = peer.call(userId, stream);
-            const video = document.createElement('video');
-            call.on('stream', userStream => addVideo(video, userStream));
-        }
-
-        function addVideo(v, s) {
+        function add(v, s) {
             v.srcObject = s; v.addEventListener('loadedmetadata', () => v.play());
-            videoGrid.append(v);
+            grid.append(v);
         }
 
-        function toggle(type) {
-            const track = type === 'audio' ? myStream.getAudioTracks()[0] : myStream.getVideoTracks()[0];
-            track.enabled = !track.enabled;
-            event.target.classList.toggle('active');
-        }
+        function toggleMic() { myStream.getAudioTracks()[0].enabled = !myStream.getAudioTracks()[0].enabled; }
+        function toggleVid() { myStream.getVideoTracks()[0].enabled = !myStream.getVideoTracks()[0].enabled; }
+        function copy() { navigator.clipboard.writeText(location.href); alert("Invite Link Copied"); }
+        function end() { socket.emit('end-meeting'); }
 
-        function copyInvite() {
-            navigator.clipboard.writeText(window.location.href);
-            alert("Invite link copied to clipboard.");
-        }
-
-        function endCall() { if(confirm("End meeting for everyone?")) socket.emit('end-meeting'); }
-
-        const input = document.getElementById('chat-input');
-        input.addEventListener('keydown', e => {
-            if(e.key === 'Enter' && input.value) { socket.emit('message', input.value); input.value = ''; }
+        const inp = document.getElementById('chat-input');
+        inp.addEventListener('keydown', e => {
+            if(e.key === 'Enter' && inp.value) { socket.emit('message', inp.value); inp.value = ''; }
         });
-        socket.on('createMessage', (msg, user) => {
-            document.getElementById('messages').innerHTML += `<div class="msg"><b>${user}</b>${msg}</div>`;
-            const msgs = document.getElementById('messages');
-            msgs.scrollTop = msgs.scrollHeight;
+        socket.on('createMessage', (m, u) => {
+            document.getElementById('msgs').innerHTML += `<div><b>${u}:</b> ${m}</div>`;
         });
 
-        async function shareScreen() {
-            const screenStream = await navigator.mediaDevices.getDisplayMedia({ cursor: true });
-            const screenVideo = document.createElement('video');
-            addVideo(screenVideo, screenStream);
-            screenStream.getVideoTracks()[0].onended = () => screenVideo.remove();
+        async function share() {
+            try {
+                const sc = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                const v = document.createElement('video'); add(v, sc);
+                sc.getVideoTracks()[0].onended = () => v.remove();
+            } catch(e) { console.error(e); }
         }
     </script>
 </body>
